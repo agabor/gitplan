@@ -49,15 +49,17 @@ update_next_task_id() {
 
 # Check for the 'task' command and 'new' subcommand
 if [[ "$1" == "task" && "$2" == "new" && -n "$3" && -n "$4" ]]; then
-echo "Creating a new task..."
     project_name=$3
+    project_dir="$root_path/$project_name"
+    
+    if [ ! -d "$project_dir" ]; then
+        echo "Project '$project_name' does not exist."
+        exit 1
+    fi
     task_name=$4
     next_id=$(read_next_task_id "$root_path/gitplan.ini")
     task_file="$root_path/$project_name/$task_name-$next_id.md"
     
-    # Create the task file and open it in vim
-    mkdir -p "$root_path/$project_name"
-    touch "$task_file"
     vim "$task_file"
     
     # Increment the next_id and update the ini file
@@ -81,7 +83,9 @@ list_tasks() {
             echo "Tasks for project '$project_name':"
             ls "$project_dir"/*.md 2>/dev/null | while read -r task_file; do
                 task_name=$(basename "$task_file")
-                echo "- ${task_name%.md}"
+                if [[ "$task_name" != "index.md" ]]; then
+                    echo "- ${task_name%.md}"
+                fi
             done
         else
             echo "Project '$project_name' does not exist."
@@ -89,9 +93,11 @@ list_tasks() {
     else
         echo "Tasks for all projects:"
         find "$root_path" -name "*.md" 2>/dev/null | while read -r task_file; do
-            project_name=$(basename "$(dirname "$task_file")")
             task_name=$(basename "$task_file")
-            echo "- [$project_name] ${task_name%.md}"
+            if [[ "$task_name" != "index.md" ]]; then
+                project_name=$(basename "$(dirname "$task_file")")
+                echo "- [$project_name] ${task_name%.md}"
+            fi
         done
     fi
 }
@@ -106,17 +112,59 @@ display_help() {
     echo "Usage: gitplan.sh [command] [subcommand] [arguments]"
     echo
     echo "Commands:"
-    echo "  project new [project_name]    Create a new project"
-    echo "  task new [project_name] [task_name]    Create a new task in a project"
-    echo "  task list [project_name]      List all tasks for a project or all projects if no project name is provided"
+    echo "  project new [project-name]    Create a new project"
+    echo "  project list                  List all projects"
+    echo "  task new [project-name] [task-name]    Create a new task in a project"
+    echo "  task list [project-name]      List all tasks for a project or all projects if no project name is provided"
+    echo "  task del [task-name]          Delete a task"
+    echo "  task show [task-name]         Show the content of a task"
+    echo "  help                          Display this help message"
     echo
     echo "Examples:"
-    echo "  ./gitplan.sh project new MyProject"
-    echo "  ./gitplan.sh task new MyProject MyTask"
-    echo "  ./gitplan.sh task list MyProject"
+    echo "  ./gitplan.sh project new my-project"
+    echo "  ./gitplan.sh project list"
+    echo "  ./gitplan.sh task new my-project my-task"
+    echo "  ./gitplan.sh task list my-project"
     echo "  ./gitplan.sh task list"
+    echo "  ./gitplan.sh task del my-task"
+    echo "  ./gitplan.sh task show my-task"
+    echo "  ./gitplan.sh help"
+}
+# Function to list all projects
+list_projects() {
+    echo "Projects:"
+    find "$root_path" -mindepth 1 -maxdepth 1 -type d | while read -r project_dir; do
+        project_name=$(basename "$project_dir")
+        echo "- $project_name"
+    done
 }
 
+# Check for the 'project' command and 'list' subcommand
+if [[ "$1" == "project" && "$2" == "list" ]]; then
+    list_projects
+    exit 0
+fi
+# Check for the 'task' command and 'del' subcommand
+if [[ "$1" == "task" && "$2" == "del" && -n "$3" ]]; then
+    task_file=$(find "$root_path" -name "$3.md" 2>/dev/null)
+    
+    if [ -n "$task_file" ]; then
+        rm "$task_file"
+        echo "Task '$3' deleted."
+    else
+        echo "Task '$3' not found."
+    fi
+fi
+# Check for the 'task' command and 'show' subcommand
+if [[ "$1" == "task" && "$2" == "show" && -n "$3" ]]; then
+    task_file=$(find "$root_path" -name "$3.md" 2>/dev/null)
+    
+    if [ -n "$task_file" ]; then
+        cat "$task_file"
+    else
+        echo "Task '$3' not found."
+    fi
+fi
 # Check for the 'help' command
 if [[ "$1" == "help" ]]; then
     display_help
