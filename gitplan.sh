@@ -26,6 +26,9 @@ create_new_project() {
     touch "$project_dir/index.md"
     
     echo "Project '$project_name' created at '$project_dir'"
+    cd "$root_path"
+    git add .
+    git commit -m "Created project '$project_name'"
 }
 
 # Check for the 'project' command and 'new' subcommand
@@ -58,7 +61,8 @@ if [[ "$1" == "task" && "$2" == "new" && -n "$3" && -n "$4" ]]; then
     fi
     task_name=$4
     next_id=$(read_next_task_id "$root_path/gitplan.ini")
-    task_file="$root_path/$project_name/$task_name-$next_id.md"
+    task_rel_path="$project_dir/$task_name-$next_id.md"
+    task_file="$root_path/$task_rel_path"
     
     vim "$task_file"
     
@@ -66,6 +70,9 @@ if [[ "$1" == "task" && "$2" == "new" && -n "$3" && -n "$4" ]]; then
     if [ -f "$task_file" ]; then
         new_next_id=$((next_id + 1))
         update_next_task_id "$root_path/gitplan.ini" "$new_next_id"
+        cd "$root_path"
+        git add .
+        git commit -m "Create task '$task_rel_path'"
     else
         echo "Task creation cancelled."
         exit 1
@@ -151,6 +158,11 @@ if [[ "$1" == "task" && "$2" == "del" && -n "$3" ]]; then
     if [ -n "$task_file" ]; then
         rm "$task_file"
         echo "Task '$3' deleted."
+        
+        # Commit the deletion to the git repository
+        cd "$root_path"
+        git add .
+        git commit -m "Deleted task '$3'"
     else
         echo "Task '$3' not found."
     fi
