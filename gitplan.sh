@@ -41,7 +41,7 @@ echo "Root Path: $root_path"
 commit() {
     cd "$root_path"
     git add .
-    git commit -m $1
+    git commit -m "$1"
 }
 
 # Function to create a new project
@@ -62,22 +62,6 @@ create_new_project() {
     echo "Project '$project_name' created at '$project_dir'"
     commit "Create project '$project_name'"
 }
-
-
-# Function to read the next task ID from the ini file
-read_next_task_id() {
-    local ini_file=$1
-    local next_id=$(awk -F '=' '/next_id/ {print $2}' "$ini_file" | tr -d ' ')
-    echo "$next_id"
-}
-
-# Function to update the next task ID in the ini file
-update_next_task_id() {
-    local ini_file=$1
-    local next_id=$2
-    awk -F '=' -v new_id=$next_id '/next_id/ {$2=new_id}1' OFS='=' "$ini_file" > temp.ini && mv temp.ini "$ini_file"
-}
-
 
 # Function to list all tasks for a given project or all projects
 list_tasks() {
@@ -154,16 +138,15 @@ if [[ "$1" == "task" ]]; then
             exit 1
         fi
         task_name=$4
-        next_id=$(read_next_task_id "$root_path/gitplan.ini")
-        task_rel_path="$project_dir/$task_name-$next_id.md"
+        task_rel_path="$project_name/$task_name.md"
         task_file="$root_path/$task_rel_path"
+
+        echo $task_file
         
-        vim "$task_file"
+        vim $task_file
         
         # Increment the next_id and update the ini file
         if [ -f "$task_file" ]; then
-            new_next_id=$((next_id + 1))
-            update_next_task_id "$root_path/gitplan.ini" "$new_next_id"
             commit "Create task '$task_rel_path'"
             exit 0
         else
@@ -181,6 +164,21 @@ if [[ "$1" == "project" ]]; then
     elif [[ "$2" == "list" ]]; then
         list_projects
         exit 0
+    elif [[ "$2" == "del" && -n "$3" ]]; then
+        project_name=$3
+        project_dir="$root_path/$project_name"
+        
+        if [ -d "$project_dir" ]; then
+            rm -rf "$project_dir"
+            echo "Project '$project_name' deleted."
+            
+            # Commit the deletion to the git repository
+            commit "Deleted project '$project_name'"
+            exit 0
+        else
+            echo "Project '$project_name' does not exist."
+            exit 1
+        fi
     fi
 fi
 
