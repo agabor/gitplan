@@ -255,7 +255,7 @@ end_work() {
     
     # Create new worklog with updated last entry
     local temp_file=$(mktemp)
-    head -n -1 "$worklog" > "$temp_file"
+    sed "\$d" "$worklog" > "$temp_file"  # Delete last line while preserving header
     echo "$start_time,$end_time,$project_name,$task_name,$duration_minutes" >> "$temp_file"
     mv "$temp_file" "$worklog"
     
