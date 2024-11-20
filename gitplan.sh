@@ -9,9 +9,9 @@ display_help() {
     echo "  project list                  List all projects"
     echo "  task new [project-name] [task-name] [state]    Create a new task in a project (state is optional)"
     echo "  task list [project-name]      List all tasks for a project or all projects if no project name is provided"
-    echo "  task del [task-name]          Delete a task"
-    echo "  task show [task-name]         Show the content of a task"
-    echo "  task state [task-name] [new-state]    Update the state of a task"
+    echo "  task del [project-name] [task-name]    Delete a task"
+    echo "  task show [project-name] [task-name]   Show the content of a task"
+    echo "  task state [project-name] [task-name] [new-state]    Update the state of a task"
     echo "  help                          Display this help message"
     echo
     echo "States:"
@@ -23,7 +23,9 @@ display_help() {
     echo "Examples:"
     echo "  ./gitplan.sh project new my-project"
     echo "  ./gitplan.sh task new my-project my-task todo"
-    echo "  ./gitplan.sh task state my-task in-progress"
+    echo "  ./gitplan.sh task state my-project my-task in-progress"
+    echo "  ./gitplan.sh task show my-project my-task"
+    echo "  ./gitplan.sh task del my-project my-task"
     echo "  ./gitplan.sh task list"
 }
 
@@ -66,6 +68,21 @@ get_task_base_name() {
     echo "$full_name" | sed -E 's/-*(todo|in-progress|review|done)*\.md$//'
 }
 
+# Function to find task file in project
+find_task_in_project() {
+    local project_name=$1
+    local task_name=$2
+    local project_dir="$root_path/$project_name"
+    
+    if [ ! -d "$project_dir" ]; then
+        echo ""
+        return 1
+    fi
+    
+    local task_file=$(find "$project_dir" -name "${task_name}*.md" 2>/dev/null | head -n 1)
+    echo "$task_file"
+}
+
 # Function to create a new project
 create_new_project() {
     local project_name=$1
@@ -93,7 +110,6 @@ list_tasks() {
             echo "Tasks for project '$project_name':"
             ls "$project_dir"/*.md 2>/dev/null | while read -r task_file; do
                 task_name=$(basename "$task_file")
-                # Extract state from filename
                 state=$(echo "$task_name" | grep -oE '-(todo|in-progress|review|done)\.md$' | sed 's/[-.]//g')
                 base_name=$(get_task_base_name "$task_name")
                 echo "- $base_name [$state]"
@@ -117,30 +133,29 @@ list_tasks() {
 
 # Function to update task state
 update_task_state() {
-    local task_name=$1
-    local new_state=$2
+    local project_name=$1
+    local task_name=$2
+    local new_state=$3
     
     if ! validate_state "$new_state"; then
         echo "Invalid state. Valid states are: todo, in-progress, review, done"
         exit 1
     fi
     
-    # Find the task file
-    local task_files=$(find "$root_path" -name "${task_name}*.md" 2>/dev/null)
+    local task_file=$(find_task_in_project "$project_name" "$task_name")
     
-    if [ -z "$task_files" ]; then
-        echo "Task '$task_name' not found."
+    if [ -z "$task_file" ]; then
+        echo "Task '$task_name' not found in project '$project_name'."
         exit 1
     fi
     
-    local task_file=$(echo "$task_files" | head -n 1)
     local task_dir=$(dirname "$task_file")
     local base_name=$(get_task_base_name "$(basename "$task_file")")
     local new_file="$task_dir/${base_name}-${new_state}.md"
     
     mv "$task_file" "$new_file"
     echo "Updated task state to '$new_state'"
-    commit "Update task '$task_name' state to '$new_state'"
+    commit "Update task '$task_name' state to '$new_state' in project '$project_name'"
 }
 
 # Function to list all projects
@@ -159,29 +174,29 @@ if [[ "$1" == "task" ]]; then
     if [[ "$2" == "list" ]]; then
         list_tasks "$3"
         exit 0
-    elif [[ "$2" == "show" && -n "$3" ]]; then
-        task_file=$(find "$root_path" -name "$3*.md" 2>/dev/null)
+    elif [[ "$2" == "show" && -n "$3" && -n "$4" ]]; then
+        task_file=$(find_task_in_project "$3" "$4")
         
         if [ -n "$task_file" ]; then
             cat "$task_file"
             exit 0
         else
-            echo "Task '$3' not found."
+            echo "Task '$4' not found in project '$3'."
             exit 1
         fi
-    elif [[ "$2" == "state" && -n "$3" && -n "$4" ]]; then
-        update_task_state "$3" "$4"
+    elif [[ "$2" == "state" && -n "$3" && -n "$4" && -n "$5" ]]; then
+        update_task_state "$3" "$4" "$5"
         exit 0
-    elif [[ "$2" == "del" && -n "$3" ]]; then
-        task_file=$(find "$root_path" -name "$3*.md" 2>/dev/null)
+    elif [[ "$2" == "del" && -n "$3" && -n "$4" ]]; then
+        task_file=$(find_task_in_project "$3" "$4")
         
         if [ -n "$task_file" ]; then
             rm "$task_file"
-            echo "Task '$3' deleted."
-            commit "Deleted task '$3'"
+            echo "Task '$4' deleted from project '$3'."
+            commit "Deleted task '$4' from project '$3'"
             exit 0
         else
-            echo "Task '$3' not found."
+            echo "Task '$4' not found in project '$3'."
             exit 1
         fi
     elif [[ "$2" == "new" && -n "$3" && -n "$4" ]]; then
