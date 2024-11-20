@@ -1,5 +1,128 @@
 #!/bin/bash
 
+# Function to generate HTML board
+generate_board() {
+    local output_file="$root_path/board.html"
+    
+    # Create HTML content
+    cat > "$output_file" << 'EOF'
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            line-height: 1.6;
+            background: #f0f2f5;
+            padding: 20px;
+        }
+
+        .board {
+            display: flex;
+            gap: 20px;
+            margin: 0 auto;
+            padding: 20px;
+            max-width: 1200px;
+        }
+
+        .column {
+            background: #ebecf0;
+            border-radius: 8px;
+            width: 300px;
+            padding: 12px;
+        }
+
+        .column-header {
+            padding: 8px;
+            font-weight: bold;
+            color: #172b4d;
+            margin-bottom: 12px;
+        }
+
+        .task-list {
+            min-height: 100px;
+        }
+
+        .task {
+            background: white;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+            cursor: move;
+        }
+
+        .task:hover {
+            background: #f8f9fa;
+        }
+
+        .project-tag {
+            font-size: 12px;
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #5e6c84;
+            margin-bottom: 4px;
+            display: inline-block;
+        }
+
+        .task-content {
+            margin-top: 4px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="board">
+EOF
+
+    # Create columns for each state
+    for state in "todo" "in-progress" "review" "done"; do
+        # Start column
+        cat >> "$output_file" << EOF
+        <div class="column">
+            <div class="column-header">${state}</div>
+            <div class="task-list">
+EOF
+
+        # Find all tasks for this state
+        while IFS= read -r task_file; do
+            if [ -n "$task_file" ]; then
+                project_name=$(basename "$(dirname "$task_file")")
+                task_name=$(basename "$task_file")
+                base_name=$(get_task_base_name "$task_name")
+                task_content=$(cat "$task_file")
+                
+                # Add task to column
+                cat >> "$output_file" << EOF
+                <div class="task">
+                    <div class="project-tag">$project_name</div>
+                    <div>$base_name</div>
+                    <div class="task-content">$task_content</div>
+                </div>
+EOF
+            fi
+        done < <(find "$root_path" -name "*-${state}.md" 2>/dev/null)
+
+        # Close column
+        cat >> "$output_file" << EOF
+            </div>
+        </div>
+EOF
+    done
+
+    # Close HTML
+    cat >> "$output_file" << 'EOF'
+    </div>
+</body>
+</html>
+EOF
+
+    echo "Board generated at: $output_file"
+}
+
 # Function to display help information
 display_help() {
     echo "Usage: gitplan.sh [command] [subcommand] [arguments]"
@@ -168,7 +291,10 @@ list_projects() {
         fi
     done
 }
-
+if [[ "$1" == "board" ]]; then
+    generate_board
+    exit 0
+fi
 # Main command processing
 if [[ "$1" == "task" ]]; then
     if [[ "$2" == "list" ]]; then
