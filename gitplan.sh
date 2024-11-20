@@ -230,6 +230,17 @@ start_work() {
     echo "Started working on task '$task_name' in project '$project_name'"
     update_task_state "$project_name" "$task_name" "in-progress"
 }
+# Function to convert datetime to unix timestamp
+datetime_to_timestamp() {
+    local datetime="$1"
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS version
+        date -j -f "%Y-%m-%d %H:%M:%S" "$datetime" "+%s"
+    else
+        # Linux version
+        date -d "$datetime" "+%s"
+    fi
+}
 
 # Function to end work on a task
 end_work() {
@@ -249,9 +260,13 @@ end_work() {
     
     # Calculate duration and format end time
     local end_time=$(date '+%Y-%m-%d %H:%M:%S')
-    local start_timestamp=$(datetime_to_timestamp "$start_time")
-    local end_timestamp=$(datetime_to_timestamp "$end_time")
-    local duration_minutes=$(( (end_timestamp - start_timestamp) / 60 ))
+    local start_seconds=$(datetime_to_timestamp "$start_time")
+    local end_seconds=$(datetime_to_timestamp "$end_time")
+    if [ -z "$start_seconds" ] || [ -z "$end_seconds" ]; then
+        echo "Error converting timestamps"
+        exit 1
+    fi
+    local duration_minutes=$(( ($end_seconds - $start_seconds + 30) / 60 ))
     
     # Create new worklog with updated last entry
     local temp_file=$(mktemp)
