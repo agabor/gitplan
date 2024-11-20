@@ -185,39 +185,34 @@ display_help() {
     echo "  ./gitplan.sh task list"
 }
 
-# New function to validate CSV file existence and create if needed
+# Function to validate CSV file existence and create if needed
 init_worklog() {
     local worklog="$root_path/worklog.csv"
     if [ ! -f "$worklog" ]; then
-        echo "timestamp,action,project,task,duration_minutes" > "$worklog"
+        echo "start_time,end_time,project,task,duration_minutes" > "$worklog"
         commit "Initialize worklog"
     fi
 }
 
-# Function to log work entries
-log_work() {
-    local timestamp=$1
-    local action=$2
-    local project=$3
-    local task=$4
-    local duration=$5
+# Function to get current work state
+get_active_work() {
     local worklog="$root_path/worklog.csv"
-    
-    echo "$timestamp,$action,$project,$task,$duration" >> "$worklog"
-    commit "Log work: $action on $project/$task"
+    # Look for the most recent entry with empty end_time
+    tail -n +2 "$worklog" | awk -F',' '$2==""' | tail -n 1
 }
 
 # Function to start work on a task
 start_work() {
     local project_name=$1
     local task_name=$2
+    local worklog="$root_path/worklog.csv"
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    local work_state_file="/tmp/gitplan_work_state"
     
     # Check if already working on something
-    if [ -f "$work_state_file" ]; then
+    local active_work=$(get_active_work)
+    if [ -n "$active_work" ]; then
         echo "Already working on a task. Please end current work session first."
-        cat "$work_state_file"
+        echo "$active_work"
         exit 1
     fi
     
@@ -228,11 +223,9 @@ start_work() {
         exit 1
     fi
     
-    # Save work state
-    echo "$timestamp|$project_name|$task_name" > "$work_state_file"
-    
-    # Log work start
-    log_work "$timestamp" "start" "$project_name" "$task_name" "0"
+    # Log work start with empty end_time and duration
+    echo "$timestamp,,$project_name,$task_name," >> "$worklog"
+    commit "Start work on $project_name/$task_name"
     
     echo "Started working on task '$task_name' in project '$project_name'"
     update_task_state "$project_name" "$task_name" "in-progress"
@@ -240,31 +233,33 @@ start_work() {
 
 # Function to end work on a task
 end_work() {
-    local work_state_file="/tmp/gitplan_work_state"
+    local worklog="$root_path/worklog.csv"
     
-    # Check if we have an active work session
-    if [ ! -f "$work_state_file" ]; then
+    # Get active work session
+    local active_work=$(get_active_work)
+    if [ -z "$active_work" ]; then
         echo "No active work session found."
         exit 1
     fi
     
-    # Read work state
-    local start_data=$(cat "$work_state_file")
-    local start_time=$(echo "$start_data" | cut -d'|' -f1)
-    local project_name=$(echo "$start_data" | cut -d'|' -f2)
-    local task_name=$(echo "$start_data" | cut -d'|' -f3)
+    # Parse active work data
+    local start_time=$(echo "$active_work" | cut -d',' -f1)
+    local project_name=$(echo "$active_work" | cut -d',' -f3)
+    local task_name=$(echo "$active_work" | cut -d',' -f4)
     
-    # Calculate duration
+    # Calculate duration and format end time
     local end_time=$(date '+%Y-%m-%d %H:%M:%S')
     local start_timestamp=$(datetime_to_timestamp "$start_time")
     local end_timestamp=$(datetime_to_timestamp "$end_time")
     local duration_minutes=$(( (end_timestamp - start_timestamp) / 60 ))
     
-    # Log work end
-    log_work "$end_time" "end" "$project_name" "$task_name" "$duration_minutes"
+    # Create new worklog with updated last entry
+    local temp_file=$(mktemp)
+    head -n -1 "$worklog" > "$temp_file"
+    echo "$start_time,$end_time,$project_name,$task_name,$duration_minutes" >> "$temp_file"
+    mv "$temp_file" "$worklog"
     
-    # Clean up work state
-    rm "$work_state_file"
+    commit "End work on $project_name/$task_name"
     
     echo "Ended work session on task '$task_name' in project '$project_name'"
     echo "Duration: $duration_minutes minutes"
@@ -303,7 +298,7 @@ summarize_work() {
     if [ -n "$project_filter" ]; then
         echo "Project: $project_filter"
         awk -F',' -v project="$project_filter" '
-            $3 == project {
+            $3 == project && $5 != "" {  # Only count completed sessions
                 tasks[$4] += $5
                 total += $5
             }
@@ -317,7 +312,7 @@ summarize_work() {
         ' "$worklog"
     else
         awk -F',' '
-            NR>1 {
+            NR>1 && $5 != "" {  # Only count completed sessions
                 projects[$3] += $5
                 total += $5
             }
