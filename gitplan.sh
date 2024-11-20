@@ -184,19 +184,31 @@ display_help() {
     echo "  ./gitplan.sh task del my-project my-task"
     echo "  ./gitplan.sh task list"
 }
+# Function to get git user name in kebab case
+get_git_user_name() {
+    local git_name=$(git config --global user.name)
+    # Convert to lowercase, replace spaces with hyphens, remove special characters
+    echo "$git_name" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | sed 's/[^a-z0-9-]//g'
+}
+
+# Function to get worklog path
+get_worklog_path() {
+    local user_name=$(get_git_user_name)
+    echo "$root_path/${user_name}-worklog.csv"
+}
 
 # Function to validate CSV file existence and create if needed
 init_worklog() {
-    local worklog="$root_path/worklog.csv"
+    local worklog=$(get_worklog_path)
     if [ ! -f "$worklog" ]; then
         echo "start_time,end_time,project,task,duration_minutes" > "$worklog"
-        commit "Initialize worklog"
+        commit "Initialize worklog for $(git config --global user.name)"
     fi
 }
 
 # Function to get current work state
 get_active_work() {
-    local worklog="$root_path/worklog.csv"
+    local worklog=$(get_worklog_path)
     # Look for the most recent entry with empty end_time
     tail -n +2 "$worklog" | awk -F',' '$2==""' | tail -n 1
 }
@@ -205,7 +217,7 @@ get_active_work() {
 start_work() {
     local project_name=$1
     local task_name=$2
-    local worklog="$root_path/worklog.csv"
+    local worklog=$(get_worklog_path)
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
     
     # Check if already working on something
@@ -230,21 +242,10 @@ start_work() {
     echo "Started working on task '$task_name' in project '$project_name'"
     update_task_state "$project_name" "$task_name" "in-progress"
 }
-# Function to convert datetime to unix timestamp
-datetime_to_timestamp() {
-    local datetime="$1"
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS version
-        date -j -f "%Y-%m-%d %H:%M:%S" "$datetime" "+%s"
-    else
-        # Linux version
-        date -d "$datetime" "+%s"
-    fi
-}
 
 # Function to end work on a task
 end_work() {
-    local worklog="$root_path/worklog.csv"
+    local worklog=$(get_worklog_path)
     
     # Get active work session
     local active_work=$(get_active_work)
@@ -283,18 +284,18 @@ end_work() {
 # Function to show work log
 show_worklog() {
     local project_filter=$1
-    local worklog="$root_path/worklog.csv"
+    local worklog=$(get_worklog_path)
     
     if [ ! -f "$worklog" ]; then
-        echo "No work log found."
+        echo "No work log found for $(git config --global user.name)."
         exit 1
     fi
     
     if [ -n "$project_filter" ]; then
-        echo "Work log for project '$project_filter':"
+        echo "Work log for project '$project_filter' ($(git config --global user.name)):"
         grep ",$project_filter," "$worklog"
     else
-        echo "Complete work log:"
+        echo "Complete work log for $(git config --global user.name):"
         cat "$worklog"
     fi
 }
@@ -302,14 +303,14 @@ show_worklog() {
 # Function to summarize work
 summarize_work() {
     local project_filter=$1
-    local worklog="$root_path/worklog.csv"
+    local worklog=$(get_worklog_path)
     
     if [ ! -f "$worklog" ]; then
-        echo "No work log found."
+        echo "No work log found for $(git config --global user.name)."
         exit 1
     fi
     
-    echo "Work Summary:"
+    echo "Work Summary for $(git config --global user.name):"
     if [ -n "$project_filter" ]; then
         echo "Project: $project_filter"
         awk -F',' -v project="$project_filter" '
