@@ -80,7 +80,7 @@ generate_board() {
             padding: 0 20px 10px 20px;
             color: #172b4d;
         }
-    </style>
+</style>
 </head>
 <body>
 EOF
@@ -95,9 +95,7 @@ EOF
     fi
 
     # Start board div
-    cat >> "$output_file" << EOF
-    <div class="board">
-EOF
+    echo '<div class="board">' >> "$output_file"
 
     # Create columns for each state
     for state in "todo" "in-progress" "review" "done"; do
@@ -109,28 +107,31 @@ EOF
 EOF
 
         # Find all tasks for this state
-        local find_command="find \"$root_path\" -name \"*-${state}.md\" 2>/dev/null"
+        local find_cmd="find \"$root_path\" -name \"*.md\" 2>/dev/null"
         if [ -n "$project_filter" ]; then
-            find_command="find \"$root_path/$project_filter\" -name \"*-${state}.md\" 2>/dev/null"
+            find_cmd="find \"$root_path/$project_filter\" -name \"*.md\" 2>/dev/null"
         fi
 
         while IFS= read -r task_file; do
             if [ -n "$task_file" ]; then
-                project_name=$(basename "$(dirname "$task_file")")
-                task_name=$(basename "$task_file")
-                base_name=$(get_task_base_name "$task_name")
-                task_content=$(cat "$task_file")
-                
-                # Add task to column
-                cat >> "$output_file" << EOF
-                <div class="task">
-                    <div class="project-tag">$project_name</div>
-                    <div>$base_name</div>
-                    <div class="task-content">$task_content</div>
-                </div>
+                # Check if task state matches current column
+                task_state=$(get_task_state "$task_file")
+                if [ "$task_state" = "$state" ]; then
+                    project_name=$(basename "$(dirname "$task_file")")
+                    task_name=$(basename "$task_file" .md)
+                    task_content=$(sed '1,/^---$/d' "$task_file" | sed '1d')
+                    
+                    # Add task to column
+                    cat >> "$output_file" << EOF
+                    <div class="task">
+                        <div class="project-tag">$project_name</div>
+                        <div>$task_name</div>
+                        <div class="task-content">$task_content</div>
+                    </div>
 EOF
+                fi
             fi
-        done < <(eval "$find_command")
+        done < <(eval "$find_cmd")
 
         # Close column
         cat >> "$output_file" << EOF
@@ -355,12 +356,11 @@ ini_file="config.ini"
 
 # Read and print the root path
 root_path=$(read_root_path "$ini_file")
-echo "Root Path: $root_path"
 
 commit() {
     cd "$root_path"
-    git add .
-    git commit -m "$1"
+    git add . > /dev/null 2>&1
+    git commit -m "$1" > /dev/null 2>&1
 }
 
 # Validate state
@@ -413,7 +413,98 @@ create_new_project() {
     commit "Create project '$project_name'"
 }
 
-# Function to list all tasks for a given project or all projects
+
+# Function to get task state from front matter
+get_task_state() {
+    local task_file=$1
+    if [ -f "$task_file" ]; then
+        # Extract state from front matter between first two "---" lines
+        sed -n '/^---$/,/^---$/p' "$task_file" | grep '^state:' | sed 's/state: *//'
+    fi
+}
+
+# Function to update task state in front matter
+update_task_front_matter() {
+    local task_file=$1
+    local new_state=$2
+    local temp_file=$(mktemp)
+    
+    if [ -f "$task_file" ]; then
+        # Check if file already has front matter
+        if grep -q '^---$' "$task_file"; then
+            # Update existing front matter
+            awk -v state="$new_state" '
+                BEGIN { in_front_matter=0; state_updated=0 }
+                /^---$/ { 
+                    print; 
+                    if (++in_front_matter == 1) { next }
+                }
+                in_front_matter == 1 {
+                    if ($0 ~ /^state:/) {
+                        print "state:", state;
+                        state_updated=1;
+                        next;
+                    }
+                    if ($0 !~ /^---$/) {
+                        print;
+                        next;
+                    }
+                }
+                in_front_matter != 1 { print }
+                END {
+                    if (in_front_matter == 1 && !state_updated) {
+                        print "state:", state;
+                        print "---";
+                    }
+                }
+            ' "$task_file" > "$temp_file"
+        else
+            # Add new front matter
+            echo "---" > "$temp_file"
+            echo "state: $new_state" >> "$temp_file"
+            echo "---" >> "$temp_file"
+            cat "$task_file" >> "$temp_file"
+        fi
+        mv "$temp_file" "$task_file"
+    fi
+}
+
+# Modified function to create a new task
+create_new_task() {
+    local project_name=$1
+    local task_name=$2
+    local state=${3:-todo}  # Default state is 'todo' if not specified
+    
+    if ! validate_state "$state"; then
+        echo "Invalid state. Valid states are: todo, in-progress, review, done"
+        exit 1
+    fi
+    
+    local project_dir="$root_path/$project_name"
+    local task_file="$project_dir/${task_name}.md"
+    
+    # Create initial content with front matter
+    cat > "$task_file" << EOF
+---
+state: $state
+created: $(date '+%Y-%m-%d %H:%M:%S')
+---
+
+EOF
+    
+    # Open in vim for editing
+    vim "$task_file"
+    
+    if [ -f "$task_file" ]; then
+        commit "Create task '$task_name' in project '$project_name'"
+        return 0
+    else
+        echo "Task creation cancelled."
+        return 1
+    fi
+}
+
+# Modified function to list tasks
 list_tasks() {
     local project_name=$1
     
@@ -422,11 +513,10 @@ list_tasks() {
         
         if [ -d "$project_dir" ]; then
             echo "Tasks for project '$project_name':"
-            ls "$project_dir"/*.md 2>/dev/null | while read -r task_file; do
-                task_name=$(basename "$task_file")
-                state=$(echo "$task_name" | grep -oE '-(todo|in-progress|review|done)\.md$' | sed 's/[-.]//g')
-                base_name=$(get_task_base_name "$task_name")
-                echo "- $base_name [$state]"
+            find "$project_dir" -name "*.md" 2>/dev/null | while read -r task_file; do
+                task_name=$(basename "$task_file" .md)
+                state=$(get_task_state "$task_file")
+                echo "- $task_name [$state]"
             done
         else
             echo "Project '$project_name' does not exist."
@@ -434,18 +524,17 @@ list_tasks() {
     else
         echo "Tasks for all projects:"
         find "$root_path" -name "*.md" 2>/dev/null | while read -r task_file; do
-            task_name=$(basename "$task_file")
+            task_name=$(basename "$task_file" .md)
             project_name=$(basename "$(dirname "$task_file")")
             if [ "$project_name" != ".git" ]; then
-                state=$(echo "$task_name" | grep -oE '-(todo|in-progress|review|done)\.md$' | sed 's/[-.]//g')
-                base_name=$(get_task_base_name "$task_name")
-                echo "- [$project_name] $base_name [$state]"
+                state=$(get_task_state "$task_file")
+                echo "- [$project_name] $task_name [$state]"
             fi
         done
     fi
 }
 
-# Function to update task state
+# Modified function to update task state
 update_task_state() {
     local project_name=$1
     local task_name=$2
@@ -456,18 +545,15 @@ update_task_state() {
         exit 1
     fi
     
-    local task_file=$(find_task_in_project "$project_name" "$task_name")
+    local project_dir="$root_path/$project_name"
+    local task_file="$project_dir/${task_name}.md"
     
-    if [ -z "$task_file" ]; then
+    if [ ! -f "$task_file" ]; then
         echo "Task '$task_name' not found in project '$project_name'."
         exit 1
     fi
     
-    local task_dir=$(dirname "$task_file")
-    local base_name=$(get_task_base_name "$(basename "$task_file")")
-    local new_file="$task_dir/${base_name}-${new_state}.md"
-    
-    mv "$task_file" "$new_file"
+    update_task_front_matter "$task_file" "$new_state"
     echo "Updated task state to '$new_state'"
     commit "Update task '$task_name' state to '$new_state' in project '$project_name'"
 }
@@ -545,36 +631,8 @@ if [[ "$1" == "task" ]]; then
             exit 1
         fi
     elif [[ "$2" == "new" && -n "$3" && -n "$4" ]]; then
-        project_name=$3
-        project_dir="$root_path/$project_name"
-        
-        if [ ! -d "$project_dir" ]; then
-            echo "Project '$project_name' does not exist."
-            exit 1
-        fi
-        
-        task_name=$4
-        state=${5:-todo}  # Default state is 'todo' if not specified
-        
-        if ! validate_state "$state"; then
-            echo "Invalid state. Valid states are: todo, in-progress, review, done"
-            exit 1
-        fi
-        
-        task_rel_path="$project_name/$task_name-$state.md"
-        task_file="$root_path/$task_rel_path"
-
-        echo $task_file
-        
-        vim $task_file
-        
-        if [ -f "$task_file" ]; then
-            commit "Create task '$task_rel_path'"
-            exit 0
-        else
-            echo "Task creation cancelled."
-            exit 1
-        fi
+        create_new_task "$3" "$4" "$5"
+        exit 0
     fi
 elif [[ "$1" == "project" ]]; then
     if [[ "$2" == "new" && -n "$3" ]]; then
