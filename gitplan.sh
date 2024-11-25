@@ -343,19 +343,17 @@ summarize_work() {
         ' "$worklog"
     fi
 }
-
-# Function to read the root path from an ini file
-read_root_path() {
+# Function to read config values from ini file
+read_config() {
     local ini_file=$1
-    local root_path=$(awk -F '=' '/root_path/ {print $2}' "$ini_file" | tr -d ' ')
-    echo "$root_path"
+    local key=$2
+    awk -F '=' "/^$key=/ {gsub(/^[[:space:]]+|[[:space:]]+$/, \"\", \$2); print \$2}" "$ini_file"
 }
 
-# Path to the ini file
+# Read configuration
 ini_file="config.ini"
-
-# Read and print the root path
-root_path=$(read_root_path "$ini_file")
+root_path=$(read_config "$ini_file" "root_path")
+editor=$(read_config "$ini_file" "editor" || echo "${EDITOR:-vim}")  # Default to $EDITOR or vim
 
 commit() {
     cd "$root_path"
@@ -487,13 +485,13 @@ create_new_task() {
     cat > "$task_file" << EOF
 ---
 state: $state
-created: $(date '+%Y-%m-%d %H:%M:%S')
+created: $(date '+%Y-%m-%d %H:%M')
 ---
 
 EOF
     
-    # Open in vim for editing
-    vim "$task_file"
+    # Open in editor for editing
+    $editor "$task_file"
     
     if [ -f "$task_file" ]; then
         commit "Create task '$task_name' in project '$project_name'"
@@ -623,7 +621,7 @@ if [[ "$1" == "task" ]]; then
         
         if [ -n "$task_file" ]; then
             rm "$task_file"
-            echo "Task '$4' deleted from project '$3'."
+            echo "Task '$4' deleted from project '$3'"
             commit "Deleted task '$4' from project '$3'"
             exit 0
         else

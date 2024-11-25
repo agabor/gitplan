@@ -10,22 +10,48 @@ TESTS_RUN=0
 TESTS_PASSED=0
 TESTS_FAILED=0
 
+# Create dummy editor script
+create_dummy_editor() {
+    cat > "$TEST_ROOT/dummy-editor" << 'EOF'
+#!/bin/bash
+file="$1"
+# If test content environment variable is set, use it
+if [ -n "$TEST_CONTENT" ]; then
+    echo "$TEST_CONTENT" >> "$file"
+else
+    echo "Test task content" >> "$file"
+fi
+EOF
+    chmod +x "$TEST_ROOT/dummy-editor"
+}
+
 # Setup test environment
 setup_test_env() {
     # Create temporary directory for tests
     TEST_ROOT=$(mktemp -d)
-    echo "root_path=$TEST_ROOT" > config.ini
     
-    # Initialize git repository
-    cd "$TEST_ROOT"
-    git init
-    git config user.name "Test User"
-    git config user.email "test@example.com"
+    # Create dummy editor
+    create_dummy_editor
     
-    # Initial commit
+    # Create config file with test settings
+    cat > config.ini << EOF
+root_path=$TEST_ROOT
+editor=$TEST_ROOT/dummy-editor
+EOF
+    
+    # Initialize git repository (suppress output)
+    cd "$TEST_ROOT" > /dev/null 2>&1
+    git init > /dev/null 2>&1
+    git config user.name "Test User" > /dev/null 2>&1
+    git config user.email "test@example.com" > /dev/null 2>&1
+    
+    # Initial commit (suppress output)
     touch .gitkeep
-    git add .gitkeep
-    git commit -m "Initial commit"
+    git add .gitkeep > /dev/null 2>&1
+    git commit -m "Initial commit" > /dev/null 2>&1
+    
+    # Rename master branch to main if needed (suppress output)
+    git branch -m main > /dev/null 2>&1
     cd -
 }
 
@@ -89,25 +115,29 @@ test_project_management() {
         1
 }
 
-# Test task management
+# Test task management with custom content
 test_task_management() {
     echo "Testing task management..."
     
     # Create test project
     ./gitplan.sh project new test-project >/dev/null
     
-    # Test task creation (simulating vim input)
-    echo "Test task content" > "$TEST_ROOT/test-project/test-task.md"
+    # Test task creation with specific content
+    export TEST_CONTENT="Custom task content for testing"
     assert "Create new task" \
         "./gitplan.sh task new test-project test-task" \
         ""
+    unset TEST_CONTENT
     
-    # Verify task front matter
-    assert "Check task front matter" \
-        "grep -A 2 '^---$' '$TEST_ROOT/test-project/test-task.md' | head -n 3" \
+    # Verify task front matter and content
+    assert "Check task front matter and content" \
+        "cat '$TEST_ROOT/test-project/test-task.md'" \
         "---
 state: todo
-created: $(date '+%Y-%m-%d')"
+created: $(date '+%Y-%m-%d %H:%M')
+---
+
+Custom task content for testing"
     
     # Test task listing
     assert "List tasks in project" \
@@ -128,12 +158,42 @@ created: $(date '+%Y-%m-%d')"
     # Test task content display
     assert "Show task content" \
         "./gitplan.sh task show test-project test-task" \
-        "Test task content"
+        "Custom task content for testing"
     
     # Test task deletion
     assert "Delete task" \
         "./gitplan.sh task del test-project test-task" \
         "Task 'test-task' deleted from project 'test-project'"
+}
+
+# Test editor configuration
+test_editor_config() {
+    echo "Testing editor configuration..."
+    
+    # Test with custom editor content
+    export TEST_CONTENT="Content from custom editor"
+    
+    # Create test project
+    ./gitplan.sh project new editor-test >/dev/null
+    
+    # Create task with custom editor
+    assert "Create task with custom editor" \
+        "./gitplan.sh task new editor-test editor-task" \
+        ""
+    
+    # Verify custom editor was used
+    assert "Verify custom editor content" \
+        "grep 'Content from custom editor' '$TEST_ROOT/editor-test/editor-task.md'" \
+        "Content from custom editor"
+    
+    unset TEST_CONTENT
+    
+    # Test with changed editor
+    echo "editor=invalid-editor" >> config.ini
+    assert "Create task with invalid editor" \
+        "./gitplan.sh task new editor-test failed-task" \
+        "Task creation cancelled." \
+        1
 }
 
 # Test work logging
@@ -188,7 +248,7 @@ test_board_generation() {
         cat > "$TEST_ROOT/test-project/task-${state}.md" << EOF
 ---
 state: $state
-created: $(date '+%Y-%m-%d %H:%M:%S')
+created: $(date '+%Y-%m-%d %H:%M')
 ---
 Task in $state state
 EOF
@@ -210,10 +270,29 @@ run_tests() {
     echo "Starting tests..."
     setup_test_env
     
+    # Store original commit function
+    if declare -f commit > /dev/null; then
+        eval "original_commit() $(declare -f commit)"
+    fi
+    
+    # Override commit function to suppress output
+    commit() {
+        cd "$TEST_ROOT" > /dev/null 2>&1
+        git add . > /dev/null 2>&1
+        git commit -m "$1" > /dev/null 2>&1
+    }
+    
     test_project_management
     test_task_management
+    test_editor_config
     test_work_logging
     test_board_generation
+    
+    # Restore original commit function if it existed
+    if declare -f original_commit > /dev/null; then
+        eval "commit() $(declare -f original_commit)"
+        unset -f original_commit
+    fi
     
     echo
     echo "Test Summary:"
