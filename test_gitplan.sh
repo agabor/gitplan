@@ -135,6 +135,7 @@ test_task_management() {
         "---
 state: todo
 created: $(date '+%Y-%m-%d %H:%M')
+name: test-task
 ---
 
 Custom task content for testing"
