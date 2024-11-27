@@ -1,148 +1,158 @@
 # GitPlan
 
-Hey there! 👋 GitPlan is your friendly command-line buddy for managing tasks and projects, with Git keeping track of all your changes. Think of it as a Kanban board that lives in your terminal!
+GitPlan is a lightweight, git-based task management system that operates entirely within a git repository. No database, no server, no backend required - just git and bash.
 
-## What's Cool About It?
+## Features
 
-- Organize everything into projects (because who doesn't love a good folder structure?)
-- See your tasks in a pretty Kanban board right in your browser
-- Never lose your work - Git's got your back
-- Track how long you spend on tasks (for those pesky time reports)
-- Move tasks through states (from "todo" to "done" and everything in between)
-- Write task notes in Markdown (because formatting matters!)
-- Generate a nice visual board to show off your progress
+- **100% Git-Based**: All data is stored in markdown files and tracked with git
+- **Zero Backend**: No servers, no databases, just files in a git repo
+- **Kanban Board**: Generate a static HTML board view of your tasks
+- **Time Tracking**: Built-in work logging and time summaries
+- **Project Organization**: Group tasks by project
+- **State Management**: Track task progress through todo → in-progress → review → done
+- **Markdown Support**: Write task details in markdown format
+- **Command Line Interface**: Fast and efficient task management from your terminal
 
-## Getting Started
+## Installation
 
-1. Grab the code:
+1. Clone this repository:
 ```bash
-git clone [your-repo-url]
+git clone https://github.com/yourusername/gitplan.git
+cd gitplan
 ```
 
-2. Create a `config.ini` file (nothing fancy, just two lines):
+2. Create a `config.ini` file:
 ```ini
-root_path=/where/you/want/your/stuff
-editor=your-favorite-editor
+root_path=/path/to/your/tasks
+editor=vim  # or your preferred editor
 ```
 
-3. Make it executable:
+3. Make the script executable:
 ```bash
 chmod +x gitplan.sh
 ```
 
-## How to Use It
+4. Optional: Add to your PATH for system-wide access
 
-### Managing Projects
+## Usage
+
+### Project Management
 
 ```bash
-# Start a new project
-./gitplan.sh project new awesome-project
+# Create a new project
+./gitplan.sh project new my-project
 
-# See what projects you've got
+# List all projects
 ./gitplan.sh project list
 
-# Clean up old projects
-./gitplan.sh project del old-project
+# Delete a project
+./gitplan.sh project del my-project
 ```
 
-### Handling Tasks
+### Task Management
 
 ```bash
-# Create something to do
-./gitplan.sh task new my-project brilliant-idea
+# Create a new task
+./gitplan.sh task new my-project "Implement feature X"
 
-# Check your to-do list
-./gitplan.sh task list
+# List tasks
+./gitplan.sh task list  # all tasks
+./gitplan.sh task list my-project  # project tasks
 
-# Peek at task details
-./gitplan.sh task show my-project brilliant-idea
+# Update task state
+./gitplan.sh task state my-project implement-feature-x in-progress
 
-# Moving things along
-./gitplan.sh task state my-project brilliant-idea in-progress
+# Show task details
+./gitplan.sh task show my-project implement-feature-x
 
-# Done with something?
-./gitplan.sh task del my-project finished-task
+# Delete task
+./gitplan.sh task del my-project implement-feature-x
 ```
 
-### Track Your Time
+### Work Logging
 
 ```bash
-# Clock in
-./gitplan.sh work start my-project current-task
+# Start working on a task
+./gitplan.sh work start my-project implement-feature-x
 
-# Clock out
+# End current work session
 ./gitplan.sh work end
 
-# See where your time went
+# View work log
 ./gitplan.sh work log
+./gitplan.sh work log my-project  # filtered by project
+
+# View work summary
 ./gitplan.sh work summary
+./gitplan.sh work summary my-project  # filtered by project
 ```
 
-### The Cool Kanban Board
+### Kanban Board
 
 ```bash
-# See everything
+# Generate board for all projects
 ./gitplan.sh board
 
-# Focus on one project
+# Generate board for specific project
 ./gitplan.sh board my-project
 ```
 
-## Task States
+## Task Structure
 
-Your tasks can be in one of these states:
-- `todo` (stuff you need to do)
-- `in-progress` (what you're working on)
-- `review` (ready for someone to check)
-- `done` (🎉 finished!)
-
-## What's Inside a Task?
-
-Tasks are just Markdown files with a little metadata at the top:
+Tasks are stored as markdown files with front matter:
 
 ```markdown
 ---
 state: todo
 created: 2024-11-27 10:00
+name: Implement Feature X
 ---
 
-Write your task details here... 
-Add links, lists, whatever helps you get things done!
+Task details go here in markdown format.
+
+- [ ] Subtask 1
+- [ ] Subtask 2
 ```
 
-## Time Tracking
+## Storage Structure
 
-GitPlan keeps track of your work in a simple CSV file with:
-- When you started
-- When you finished
-- What project and task
-- How long it took
+```
+root_path/
+├── project1/
+│   ├── project.ini
+│   ├── task-1.md
+│   └── task-2.md
+├── project2/
+│   ├── project.ini
+│   └── another-task.md
+└── username-worklog.csv
+```
 
-## The Board View
+## Git Integration
 
-Run the board command and you'll get a nice HTML page with:
-- All your tasks organized in columns
-- Project tags so you know what's what
-- A clean, modern look that works on your phone too
-- Ready for drag-and-drop (if you want to add that feature!)
+GitPlan automatically commits changes to your git repository, creating a complete history of your task management:
 
-## Git Magic
+- Task creation and deletion
+- State changes
+- Work log entries
+- Project creation and deletion
 
-Every time you create, update, or delete something, GitPlan makes a commit. This means:
-- You can see how your tasks evolved
-- Nothing ever gets lost
-- You can share your task board with others
-- Easy backups!
+## Why GitPlan?
 
-## What You Need
+- **Portable**: Your entire task management system lives in a git repo
+- **Simple**: No complex setup, just clone and start using
+- **Offline-First**: Works without internet connection
+- **Version Controlled**: Full history of all changes
+- **Text-Based**: Easy to script and integrate with other tools
+- **No Lock-In**: Your data is just markdown files in a git repo
+- **Collaborative**: Share tasks via git push/pull
+- **Private**: Your data stays in your git repo
 
-- Bash (comes with most Unix-like systems)
-- Git (you probably already have this)
-- A text editor you like
+## Dependencies
 
-## Want to Help?
-
-Found a bug? Have an idea for a cool feature? We'd love to see your contributions! Just fork the repo and send us a pull request.
+- Git
+- Bash
+- Text editor (vim by default, configurable)
 
 ## License
 
