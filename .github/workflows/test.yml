@@ -1,0 +1,16 @@
+name: Run test_gitplan.sh
+
+on: [push, pull_request]
+
+jobs:
+  run-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Run test_gitplan.sh
+      run: |
+        chmod +x ./test_gitplan.sh
+        ./test_gitplan.sh

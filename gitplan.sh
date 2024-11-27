@@ -244,6 +244,10 @@ start_work() {
     update_task_state "$project_name" "$task_name" "in-progress"
 }
 
+datetime_to_timestamp() {
+    date -d "$1" +%s
+}
+
 # Function to end work on a task
 end_work() {
     local worklog=$(get_worklog_path)
