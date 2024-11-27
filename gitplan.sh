@@ -112,26 +112,26 @@ EOF
             find_cmd="find \"$root_path/$project_filter\" -name \"*.md\" 2>/dev/null"
         fi
 
-        while IFS= read -r task_file; do
-            if [ -n "$task_file" ]; then
-                # Check if task state matches current column
-                task_state=$(get_task_state "$task_file")
-                if [ "$task_state" = "$state" ]; then
-                    project_name=$(basename "$(dirname "$task_file")")
-                    task_name=$(basename "$task_file" .md)
-                    task_content=$(sed '1,/^---$/d' "$task_file" | sed '1d')
-                    
-                    # Add task to column
-                    cat >> "$output_file" << EOF
-                    <div class="task">
-                        <div class="project-tag">$project_name</div>
-                        <div>$task_name</div>
-                        <div class="task-content">$task_content</div>
-                    </div>
+    while IFS= read -r task_file; do
+        if [ -n "$task_file" ]; then
+            # Check if task state matches current column
+            task_state=$(get_task_state "$task_file")
+            if [ "$task_state" = "$state" ]; then
+                project_name=$(basename "$(dirname "$task_file")")
+                task_name=$(get_task_name "$task_file")
+                task_content=$(sed '1,/^---$/d' "$task_file" | sed '1d')
+                
+                # Add task to column
+                cat >> "$output_file" << EOF
+                <div class="task">
+                    <div class="project-tag">$project_name</div>
+                    <div>$task_name</div>
+                    <div class="task-content">$task_content</div>
+                </div>
 EOF
-                fi
             fi
-        done < <(eval "$find_cmd")
+        fi
+    done < <(eval "$find_cmd")
 
         # Close column
         cat >> "$output_file" << EOF
@@ -217,7 +217,7 @@ get_active_work() {
 # Function to start work on a task
 start_work() {
     local project_name=$1
-    local task_name=$2
+    local task_id=$2
     local worklog=$(get_worklog_path)
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
     
@@ -229,19 +229,21 @@ start_work() {
         exit 1
     fi
     
-    # Verify task exists
-    local task_file=$(find_task_in_project "$project_name" "$task_name")
+    # Find task file and get display name
+    local task_file=$(find_task_in_project "$project_name" "$task_id")
     if [ -z "$task_file" ]; then
-        echo "Task '$task_name' not found in project '$project_name'."
+        echo "Task '$task_id' not found in project '$project_name'."
         exit 1
     fi
+    
+    local task_name=$(get_task_name "$task_file")
     
     # Log work start with empty end_time and duration
     echo "$timestamp,,$project_name,$task_name," >> "$worklog"
     commit "Start work on $project_name/$task_name"
     
     echo "Started working on task '$task_name' in project '$project_name'"
-    update_task_state "$project_name" "$task_name" "in-progress"
+    update_task_state "$project_name" "$task_id" "in-progress"
 }
 
 datetime_to_timestamp() {
@@ -387,7 +389,7 @@ get_task_base_name() {
 # Function to find task file in project
 find_task_in_project() {
     local project_name=$1
-    local task_name=$2
+    local task_id=$2
     local project_dir="$root_path/$project_name"
     
     if [ ! -d "$project_dir" ]; then
@@ -395,7 +397,7 @@ find_task_in_project() {
         return 1
     fi
     
-    local task_file=$(find "$project_dir" -name "${task_name}*.md" 2>/dev/null | head -n 1)
+    local task_file=$(find "$project_dir" -name "${task_id}.md" 2>/dev/null | head -n 1)
     echo "$task_file"
 }
 
@@ -471,7 +473,6 @@ update_task_front_matter() {
     fi
 }
 
-# Modified function to create a new task
 create_new_task() {
     local project_name=$1
     local task_name=$2
@@ -482,14 +483,18 @@ create_new_task() {
         exit 1
     fi
     
+    # Create a sanitized identifier from the task name
+    local task_id=$(echo "$task_name" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | sed 's/[^a-z0-9-]//g')
+    
     local project_dir="$root_path/$project_name"
-    local task_file="$project_dir/${task_name}.md"
+    local task_file="$project_dir/${task_id}.md"
     
     # Create initial content with front matter
     cat > "$task_file" << EOF
 ---
 state: $state
 created: $(date '+%Y-%m-%d %H:%M')
+name: $task_name
 ---
 
 EOF
@@ -506,7 +511,15 @@ EOF
     fi
 }
 
-# Modified function to list tasks
+
+# Function to get task display name from front matter
+get_task_name() {
+    local task_file=$1
+    if [ -f "$task_file" ]; then
+        sed -n '/^---$/,/^---$/p' "$task_file" | grep '^name:' | sed 's/name: *//'
+    fi
+}
+
 list_tasks() {
     local project_name=$1
     
@@ -516,7 +529,7 @@ list_tasks() {
         if [ -d "$project_dir" ]; then
             echo "Tasks for project '$project_name':"
             find "$project_dir" -name "*.md" 2>/dev/null | while read -r task_file; do
-                task_name=$(basename "$task_file" .md)
+                task_name=$(get_task_name "$task_file")
                 state=$(get_task_state "$task_file")
                 echo "- $task_name [$state]"
             done
@@ -526,9 +539,9 @@ list_tasks() {
     else
         echo "Tasks for all projects:"
         find "$root_path" -name "*.md" 2>/dev/null | while read -r task_file; do
-            task_name=$(basename "$task_file" .md)
             project_name=$(basename "$(dirname "$task_file")")
             if [ "$project_name" != ".git" ]; then
+                task_name=$(get_task_name "$task_file")
                 state=$(get_task_state "$task_file")
                 echo "- [$project_name] $task_name [$state]"
             fi
@@ -536,10 +549,9 @@ list_tasks() {
     fi
 }
 
-# Modified function to update task state
 update_task_state() {
     local project_name=$1
-    local task_name=$2
+    local task_id=$2
     local new_state=$3
     
     if ! validate_state "$new_state"; then
@@ -547,15 +559,15 @@ update_task_state() {
         exit 1
     fi
     
-    local project_dir="$root_path/$project_name"
-    local task_file="$project_dir/${task_name}.md"
+    local task_file=$(find_task_in_project "$project_name" "$task_id")
     
     if [ ! -f "$task_file" ]; then
-        echo "Task '$task_name' not found in project '$project_name'."
+        echo "Task '$task_id' not found in project '$project_name'."
         exit 1
     fi
     
     update_task_front_matter "$task_file" "$new_state"
+    local task_name=$(get_task_name "$task_file")
     echo "Updated task state to '$new_state'"
     commit "Update task '$task_name' state to '$new_state' in project '$project_name'"
 }
