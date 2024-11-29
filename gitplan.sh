@@ -316,12 +316,6 @@ update_task_front_matter() {
 create_new_task() {
     local project_id=$1
     local task_name=$2
-    local state=${3:-todo}  # Default state is 'todo' if not specified
-    
-    if ! validate_state "$state"; then
-        echo "Invalid state. Valid states are: todo, in-progress, review, done"
-        exit 1
-    fi
     
     # Create a sanitized identifier from the task name
     local task_id=$(echo "$task_name" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | sed 's/[^a-z0-9-]//g')
@@ -332,9 +326,10 @@ create_new_task() {
     # Create initial content with front matter
     cat > "$task_file" << EOF
 ---
-state: $state
+state: todo
 created: $(date '+%Y-%m-%d %H:%M')
 name: $task_name
+tags:
 ---
 
 EOF
@@ -360,32 +355,59 @@ get_task_name() {
     fi
 }
 
+get_task_tags() {
+    local task_file=$1
+    if [ -f "$task_file" ]; then
+        # Look for tags: line in front matter
+        sed -n '/^---$/,/^---$/p' "$task_file" | grep '^tags:' | sed 's/tags: *//'
+    fi
+}
+
 list_tasks() {
     local project_id=$1
+    local tag_filter=$2  # New parameter for tag filtering
+    
+    list_tasks_with_filter() {
+        local task_file=$1
+        local project_id=$2
+        local tag_filter=$3
+        
+        task_name=$(get_task_name "$task_file")
+        state=$(get_task_state "$task_file")
+        tags=$(get_task_tags "$task_file")
+        task_id=$(basename "$task_file" .md)
+        
+        # If tag filter is specified, only show tasks with matching tag
+        if [ -n "$tag_filter" ]; then
+            if echo "$tags" | grep -q "\b${tag_filter}\b"; then
+                echo "- [$project_id/$task_id] $task_name [$state] {$tags}"
+            fi
+        else
+            if [ -n "$tags" ]; then
+            echo "- [$project_id/$task_id] $task_name [$state] {$tags}"
+            else
+            echo "- [$project_id/$task_id] $task_name [$state]"
+            fi
+        fi
+    }
     
     if [ -n "$project_id" ]; then
         local project_dir="$root_path/$project_id"
         
         if [ -d "$project_dir" ]; then
-            echo "Tasks for project '$project_id':"
+            echo "Tasks for project '$project_id'${tag_filter:+ with tag '$tag_filter'}:"
             find "$project_dir" -name "*.md" 2>/dev/null | while read -r task_file; do
-                task_name=$(get_task_name "$task_file")
-                state=$(get_task_state "$task_file")
-                task_id=$(basename "$task_file" .md)
-                echo "- [$task_id] $task_name [$state]"
+                list_tasks_with_filter "$task_file" "$project_id" "$tag_filter"
             done
         else
             echo "Project '$project_id' does not exist."
         fi
     else
-        echo "Tasks for all projects:"
+        echo "Tasks for all projects${tag_filter:+ with tag '$tag_filter'}:"
         find "$root_path" -name "*.md" 2>/dev/null | while read -r task_file; do
             project_id=$(basename "$(dirname "$task_file")")
             if [ "$project_id" != ".git" ]; then
-                task_name=$(get_task_name "$task_file")
-                state=$(get_task_state "$task_file")
-                task_id=$(basename "$task_file" .md)
-                echo "- [$project_id/$task_id] $task_name [$state]"
+                list_tasks_with_filter "$task_file" "$project_id" "$tag_filter"
             fi
         done
     fi
@@ -458,9 +480,26 @@ if [[ "$1" == "work" ]]; then
     fi
 fi
 
+if [[ "$1" == "tag" ]]; then
+    if [[ "$2" == "list" ]]; then
+        list_tasks "" "$3"
+        exit 0
+    else
+        echo "Tags:"
+        find "$root_path" -name "*.md" 2>/dev/null | while read -r task_file; do
+            tags=$(get_task_tags "$task_file")
+            if [ -n "$tags" ]; then
+                echo "$tags"
+            fi
+        done
+        exit 0
+    fi
+fi
+
+
 if [[ "$1" == "task" ]]; then
     if [[ "$2" == "list" ]]; then
-        list_tasks "$3"
+        list_tasks "$3" "$4"
         exit 0
     elif [[ "$2" == "show" && -n "$3" && -n "$4" ]]; then
         task_file=$(find_task_in_project "$3" "$4")
@@ -488,8 +527,19 @@ if [[ "$1" == "task" ]]; then
             exit 1
         fi
     elif [[ "$2" == "new" && -n "$3" && -n "$4" ]]; then
-        create_new_task "$3" "$4" "$5"
+        create_new_task "$3" "$4"
         exit 0
+    elif [[ "$2" == "edit" && -n "$3" && -n "$4" ]]; then
+        task_file=$(find_task_in_project "$3" "$4")
+        
+        if [ -n "$task_file" ]; then
+            $editor "$task_file"
+            commit "Edited task '$4' in project '$3'"
+            exit 0
+        else
+            echo "Task '$4' not found in project '$3'."
+            exit 1
+        fi
     fi
 elif [[ "$1" == "project" ]]; then
     if [[ "$2" == "new" && -n "$3" ]]; then
