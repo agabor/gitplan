@@ -145,7 +145,7 @@ Custom task content for testing"
     assert "List tasks in project" \
         "./gitplan.sh task list test-project" \
         "Tasks for project 'test-project':
-- [test-task] test-task [todo]"
+- [test-project/test-task] test-task [todo]"
     
     # Test task state update
     assert "Update task state" \
