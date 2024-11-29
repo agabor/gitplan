@@ -243,7 +243,8 @@ EOF
     # Generate board
     assert "Generate board" \
         "./gitplan.sh board test-project" \
-        "Board generated at: $TEST_ROOT/board.html"
+        "Board generated at: $TEST_ROOT/board.html
+To view the board in browser, use: gitplan board show"
     
 }
 
