@@ -8,7 +8,6 @@ output_file="$root_path/board.html"
 get_task_state() {
     local task_file=$1
     if [ -f "$task_file" ]; then
-        # Extract state from front matter between first two "---" lines
         sed -n '/^---$/,/^---$/p' "$task_file" | grep '^state:' | sed 's/state: *//'
     fi
 }
@@ -23,9 +22,46 @@ get_task_name() {
 get_task_tags() {
     local task_file=$1
     if [ -f "$task_file" ]; then
-        # Look for tags: line in front matter
         sed -n '/^---$/,/^---$/p' "$task_file" | grep '^tags:' | sed 's/tags: *//'
     fi
+}
+
+read_config() {
+    local ini_file=$1
+    local key=$2
+    awk -F '=' "/^$key=/ {gsub(/^[[:space:]]+|[[:space:]]+$/, \"\", \$2); print \$2}" "$ini_file"
+}
+
+get_project_name() {
+    local project_dir=$1
+    read_config "$project_dir/project.ini" "name"
+}
+
+get_task_content() {
+    local task_file=$1
+    # Skip everything up to and including the second "---" line, 
+    # print the rest, and trim leading/trailing whitespace
+    awk '
+        BEGIN { content = ""; in_content = 0; }
+        /^---$/ { 
+            if (++count == 2) {
+                in_content = 1;
+                next;
+            }
+        }
+        in_content {
+            if (NF > 0) {  # If line is not empty
+                if (content == "") {
+                    content = $0;  # First non-empty line
+                } else {
+                    content = content "\n" $0;  # Subsequent lines
+                }
+            }
+        }
+        END {
+            if (content != "") print content;
+        }
+    ' "$task_file"
 }
 
 # Create HTML content
@@ -155,16 +191,18 @@ EOF
             # Check if task state matches current column
             task_state=$(get_task_state "$task_file")
             if [ "$task_state" = "$state" ]; then
-                project_name=$(basename "$(dirname "$task_file")")
+                project_dir=$(dirname "$task_file")
+                project_id=$(basename "$project_dir")
+                project_name=$(get_project_name "$project_dir")
                 task_name=$(get_task_name "$task_file")
-                task_content=$(sed '1,/^---$/d' "$task_file" | sed '1d')
+                task_content=$(get_task_content "$task_file")
                 task_tags=$(get_task_tags "$task_file")
                 
                 # Add task to column
                 cat >> "$output_file" << EOF
                 <div class="task">
-                    <div class="project-tag">$project_name</div>
-                    <div>$task_name</div>
+                    <div class="project-tag">${project_name:-$project_id}</div>
+                    <div><strong>${task_name}</strong></div>
 EOF
 
                 # Add tags if they exist
