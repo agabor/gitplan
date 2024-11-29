@@ -32,7 +32,7 @@ get_active_work() {
 
 # Function to start work on a task
 start_work() {
-    local project_name=$1
+    local project_id=$1
     local task_id=$2
     local worklog=$(get_worklog_path)
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
@@ -46,20 +46,20 @@ start_work() {
     fi
     
     # Find task file and get display name
-    local task_file=$(find_task_in_project "$project_name" "$task_id")
+    local task_file=$(find_task_in_project "$project_id" "$task_id")
     if [ -z "$task_file" ]; then
-        echo "Task '$task_id' not found in project '$project_name'."
+        echo "Task '$task_id' not found in project '$project_id'."
         exit 1
     fi
     
     local task_name=$(get_task_name "$task_file")
     
     # Log work start with empty end_time and duration
-    echo "$timestamp,,$project_name,$task_name," >> "$worklog"
-    commit "Start work on $project_name/$task_name"
+    echo "$timestamp,,$project_id,$task_name," >> "$worklog"
+    commit "Start work on $project_id/$task_name"
     
-    echo "Started working on task '$task_name' in project '$project_name'"
-    update_task_state "$project_name" "$task_id" "in-progress"
+    echo "Started working on task '$task_name' in project '$project_id'"
+    update_task_state "$project_id" "$task_id" "in-progress"
 }
 
 datetime_to_timestamp() {
@@ -83,7 +83,7 @@ end_work() {
     
     # Parse active work data
     local start_time=$(echo "$active_work" | cut -d',' -f1)
-    local project_name=$(echo "$active_work" | cut -d',' -f3)
+    local project_id=$(echo "$active_work" | cut -d',' -f3)
     local task_name=$(echo "$active_work" | cut -d',' -f4)
     
     # Calculate duration and format end time
@@ -99,12 +99,12 @@ end_work() {
     # Create new worklog with updated last entry
     local temp_file=$(mktemp)
     sed "\$d" "$worklog" > "$temp_file"  # Delete last line while preserving header
-    echo "$start_time,$end_time,$project_name,$task_name,$duration_minutes" >> "$temp_file"
+    echo "$start_time,$end_time,$project_id,$task_name,$duration_minutes" >> "$temp_file"
     mv "$temp_file" "$worklog"
     
-    commit "End work on $project_name/$task_name"
+    commit "End work on $project_id/$task_name"
     
-    echo "Ended work session on task '$task_name' in project '$project_name'"
+    echo "Ended work session on task '$task_name' in project '$project_id'"
     echo "Duration: $duration_minutes minutes"
 }
 
@@ -228,9 +228,9 @@ get_task_base_name() {
 
 # Function to find task file in project
 find_task_in_project() {
-    local project_name=$1
+    local project_id=$1
     local task_id=$2
-    local project_dir="$root_path/$project_name"
+    local project_dir="$root_path/$project_id"
     
     if [ ! -d "$project_dir" ]; then
         echo ""
@@ -314,7 +314,7 @@ update_task_front_matter() {
 }
 
 create_new_task() {
-    local project_name=$1
+    local project_id=$1
     local task_name=$2
     local state=${3:-todo}  # Default state is 'todo' if not specified
     
@@ -326,7 +326,7 @@ create_new_task() {
     # Create a sanitized identifier from the task name
     local task_id=$(echo "$task_name" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | sed 's/[^a-z0-9-]//g')
     
-    local project_dir="$root_path/$project_name"
+    local project_dir="$root_path/$project_id"
     local task_file="$project_dir/${task_id}.md"
     
     # Create initial content with front matter
@@ -343,7 +343,7 @@ EOF
     $editor "$task_file"
     
     if [ -f "$task_file" ]; then
-        commit "Create task '$task_name' in project '$project_name'"
+        commit "Create task '$task_name' in project '$project_id'"
         return 0
     else
         echo "Task creation cancelled."
@@ -361,13 +361,13 @@ get_task_name() {
 }
 
 list_tasks() {
-    local project_name=$1
+    local project_id=$1
     
-    if [ -n "$project_name" ]; then
-        local project_dir="$root_path/$project_name"
+    if [ -n "$project_id" ]; then
+        local project_dir="$root_path/$project_id"
         
         if [ -d "$project_dir" ]; then
-            echo "Tasks for project '$project_name':"
+            echo "Tasks for project '$project_id':"
             find "$project_dir" -name "*.md" 2>/dev/null | while read -r task_file; do
                 task_name=$(get_task_name "$task_file")
                 state=$(get_task_state "$task_file")
@@ -375,24 +375,24 @@ list_tasks() {
                 echo "- [$task_id] $task_name [$state]"
             done
         else
-            echo "Project '$project_name' does not exist."
+            echo "Project '$project_id' does not exist."
         fi
     else
         echo "Tasks for all projects:"
         find "$root_path" -name "*.md" 2>/dev/null | while read -r task_file; do
-            project_name=$(basename "$(dirname "$task_file")")
-            if [ "$project_name" != ".git" ]; then
+            project_id=$(basename "$(dirname "$task_file")")
+            if [ "$project_id" != ".git" ]; then
                 task_name=$(get_task_name "$task_file")
                 state=$(get_task_state "$task_file")
                 task_id=$(basename "$task_file" .md)
-                echo "- [$project_name/$task_id] $task_name [$state]"
+                echo "- [$project_id/$task_id] $task_name [$state]"
             fi
         done
     fi
 }
 
 update_task_state() {
-    local project_name=$1
+    local project_id=$1
     local task_id=$2
     local new_state=$3
     
@@ -401,17 +401,17 @@ update_task_state() {
         exit 1
     fi
     
-    local task_file=$(find_task_in_project "$project_name" "$task_id")
+    local task_file=$(find_task_in_project "$project_id" "$task_id")
     
     if [ ! -f "$task_file" ]; then
-        echo "Task '$task_id' not found in project '$project_name'."
+        echo "Task '$task_id' not found in project '$project_id'."
         exit 1
     fi
     
     update_task_front_matter "$task_file" "$new_state"
     local task_name=$(get_task_name "$task_file")
     echo "Updated task state to '$new_state'"
-    commit "Update task '$task_name' state to '$new_state' in project '$project_name'"
+    commit "Update task '$task_name' state to '$new_state' in project '$project_id'"
 }
 
 # Function to list all projects
@@ -499,16 +499,16 @@ elif [[ "$1" == "project" ]]; then
         list_projects
         exit 0
     elif [[ "$2" == "del" && -n "$3" ]]; then
-        project_name=$3
-        project_dir="$root_path/$project_name"
+        project_id=$3
+        project_dir="$root_path/$project_id"
         
         if [ -d "$project_dir" ]; then
             rm -rf "$project_dir"
-            echo "Project '$project_name' deleted."
-            commit "Deleted project '$project_name'"
+            echo "Project '$project_id' deleted."
+            commit "Deleted project '$project_id'"
             exit 0
         else
-            echo "Project '$project_name' does not exist."
+            echo "Project '$project_id' does not exist."
             exit 1
         fi
     fi
