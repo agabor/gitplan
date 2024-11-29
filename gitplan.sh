@@ -177,7 +177,27 @@ read_config() {
 }
 
 # Read configuration
-ini_file="config.ini"
+ini_file="$HOME/.gitplan/config.ini"
+if [ -f "./config.ini" ]; then
+    ini_file="./config.ini"
+fi
+
+# Check if config file exists, if not create it interactively
+if [ ! -f "$ini_file" ]; then
+    echo "Configuration file not found. Let's create one."
+    
+    read -p "Enter root path for Git Plan data: " root_path
+    read -p "Enter your preferred editor command (default: vim): " editor
+    editor=${editor:-vim}
+    
+    mkdir -p "$(dirname "$ini_file")"
+    cat > "$ini_file" << EOF
+root_path=$root_path
+editor=$editor
+EOF
+    
+    echo "Configuration file created at $ini_file"
+fi
 root_path=$(read_config "$ini_file" "root_path")
 editor=$(read_config "$ini_file" "editor" || echo "${EDITOR:-vim}")  # Default to $EDITOR or vim
 
@@ -223,18 +243,18 @@ find_task_in_project() {
 
 # Function to create a new project
 create_new_project() {
-    local project_name=$1
-    local project_dir="$root_path/$project_name"
+    local project_id=$1
+    local project_name=$2
+    local client=${3:-$2}
+    local project_dir="$root_path/$project_id"
     
     mkdir -p "$project_dir"
-    touch "$project_dir/project.ini"
-    if [ -n "$2" ]; then
-        echo "client=$2" >> "$project_dir/project.ini"
-    else
-        echo "client=$1" >> "$project_dir/project.ini"
-    fi
-    echo "Project '$project_name' created at '$project_dir'"
-    commit "Create project '$project_name'"
+    cat > "$project_dir/project.ini" << EOF
+name=$project_name
+client=$client
+EOF
+    echo "Project '$project_id' created at '$project_dir'"
+    commit "Create project '$project_id'"
 }
 
 
@@ -398,9 +418,10 @@ update_task_state() {
 list_projects() {
     echo "Projects:"
     find "$root_path" -mindepth 1 -maxdepth 1 -type d | while read -r project_dir; do
-        project_name=$(basename "$project_dir")
-        if [ "$project_name" != ".git" ]; then
-            echo "- $project_name"
+        project_id=$(basename "$project_dir")
+        if [ "$project_id" != ".git" ]; then
+            project_name=$(read_config "$project_dir/project.ini" "name")
+            echo "- [$project_id] $project_name"
         fi
     done
 }

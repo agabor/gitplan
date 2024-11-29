@@ -94,14 +94,14 @@ test_project_management() {
     
     # Test project creation
     assert "Create new project" \
-        "./gitplan.sh project new test-project" \
+        "./gitplan.sh project new test-project 'Test Project'" \
         "Project 'test-project' created at '$TEST_ROOT/test-project'"
     
     # Test project listing
     assert "List projects" \
         "./gitplan.sh project list" \
         "Projects:
-- test-project"
+- [test-project] Test Project"
     
     # Test project deletion
     assert "Delete project" \
