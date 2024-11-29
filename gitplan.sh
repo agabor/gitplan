@@ -351,7 +351,8 @@ list_tasks() {
             find "$project_dir" -name "*.md" 2>/dev/null | while read -r task_file; do
                 task_name=$(get_task_name "$task_file")
                 state=$(get_task_state "$task_file")
-                echo "- $task_name [$state]"
+                task_id=$(basename "$task_file" .md)
+                echo "- [$task_id] $task_name [$state]"
             done
         else
             echo "Project '$project_name' does not exist."
@@ -363,7 +364,8 @@ list_tasks() {
             if [ "$project_name" != ".git" ]; then
                 task_name=$(get_task_name "$task_file")
                 state=$(get_task_state "$task_file")
-                echo "- [$project_name] $task_name [$state]"
+                task_id=$(basename "$task_file" .md)
+                echo "- [$project_name/$task_id] $task_name [$state]"
             fi
         done
     fi
