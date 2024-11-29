@@ -35,7 +35,7 @@ The configuration process will ask for:
 - Root path for Git Plan data
 - Your preferred editor (defaults to vim)
 
-This creates a config file at `$HOME/.gitplan/config.ini` or `./config.ini` if run from the current directory.
+This creates a config file at `$HOME/.gitplan/config.ini`.
 
 4. Optional: Add to your PATH for system-wide access
 
