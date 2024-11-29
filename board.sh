@@ -1,9 +1,34 @@
 #!/bin/bash
 
-output_file="$1/board.html"
+root_path="$1"
 project_filter="$2"
-    
-    # Create HTML content
+output_file="$root_path/board.html"
+
+# Helper functions (copied from gitplan.sh to make board.sh independent)
+get_task_state() {
+    local task_file=$1
+    if [ -f "$task_file" ]; then
+        # Extract state from front matter between first two "---" lines
+        sed -n '/^---$/,/^---$/p' "$task_file" | grep '^state:' | sed 's/state: *//'
+    fi
+}
+
+get_task_name() {
+    local task_file=$1
+    if [ -f "$task_file" ]; then
+        sed -n '/^---$/,/^---$/p' "$task_file" | grep '^name:' | sed 's/name: *//'
+    fi
+}
+
+get_task_tags() {
+    local task_file=$1
+    if [ -f "$task_file" ]; then
+        # Look for tags: line in front matter
+        sed -n '/^---$/,/^---$/p' "$task_file" | grep '^tags:' | sed 's/tags: *//'
+    fi
+}
+
+# Create HTML content
 cat > "$output_file" << 'EOF'
 <!DOCTYPE html>
 <html>
@@ -67,6 +92,21 @@ cat > "$output_file" << 'EOF'
             display: inline-block;
         }
 
+        .task-tags {
+            margin-top: 8px;
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .task-tag {
+            font-size: 11px;
+            background: #dfe1e6;
+            padding: 1px 6px;
+            border-radius: 10px;
+            color: #44546f;
+        }
+
         .task-content {
             margin-top: 4px;
             white-space: pre-wrap;
@@ -92,7 +132,7 @@ if [ -n "$project_filter" ]; then
 EOF
 fi
 
-    # Start board div
+# Start board div
 echo '<div class="board">' >> "$output_file"
 
 # Create columns for each state
@@ -118,12 +158,25 @@ EOF
                 project_name=$(basename "$(dirname "$task_file")")
                 task_name=$(get_task_name "$task_file")
                 task_content=$(sed '1,/^---$/d' "$task_file" | sed '1d')
+                task_tags=$(get_task_tags "$task_file")
                 
                 # Add task to column
                 cat >> "$output_file" << EOF
                 <div class="task">
                     <div class="project-tag">$project_name</div>
                     <div>$task_name</div>
+EOF
+
+                # Add tags if they exist
+                if [ -n "$task_tags" ]; then
+                    echo "<div class=\"task-tags\">" >> "$output_file"
+                    for tag in $task_tags; do
+                        echo "<span class=\"task-tag\">$tag</span>" >> "$output_file"
+                    done
+                    echo "</div>" >> "$output_file"
+                fi
+
+                cat >> "$output_file" << EOF
                     <div class="task-content">$task_content</div>
                 </div>
 EOF
@@ -138,7 +191,7 @@ EOF
 EOF
 done
 
-    # Close HTML
+# Close HTML
 cat >> "$output_file" << 'EOF'
     </div>
 </body>

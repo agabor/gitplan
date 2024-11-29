@@ -25,7 +25,8 @@ echo "  work log [project-id]                              Show work log (option
 echo "  work summary [project-id]                          Show work summary (optionally filtered by project)"
 echo
 echo "Board View:"
-echo "  board [project-id]                                 Show kanban board view (optionally filtered by project)"
+echo "  board [project-id]                                 Generate kanban board view (optionally filtered by project)"
+echo "  board show [project-id]                            Generate and open board in default browser"
 echo
 echo "Valid States:"
 echo "  todo         (default)"

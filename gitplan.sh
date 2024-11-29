@@ -447,21 +447,62 @@ list_projects() {
         fi
     done
 }
+
+open_in_browser() {
+    local url=$1
+    
+    case "$OSTYPE" in
+        darwin*)  # macOS
+            open "$url"
+            ;;
+        linux*)   # Linux
+            if command -v xdg-open > /dev/null; then
+                xdg-open "$url"
+            elif command -v gnome-open > /dev/null; then
+                gnome-open "$url"
+            else
+                echo "Could not find command to open browser. Please open $url manually."
+            fi
+            ;;
+        *)        # Other OS
+            echo "Unsupported operating system. Please open $url manually."
+            ;;
+    esac
+}
+
+# Main command processing
+
 if [[ "$1" == "board" ]]; then
-    if [[ -n "$2" ]]; then
-        # Check if the specified project exists
-        if [ -d "$root_path/$2" ]; then
-            ./board.sh "$root_path" "$2"
+    if [[ "$2" == "show" ]]; then
+        if [[ -n "$3" ]]; then
+            # Check if the specified project exists
+            if [ -d "$root_path/$3" ]; then
+                ./board.sh "$root_path" "$3"
+                open_in_browser "$root_path/board.html"
+            else
+                echo "Project '$3' does not exist."
+                exit 1
+            fi
         else
-            echo "Project '$2' does not exist."
-            exit 1
+            ./board.sh "$root_path"
+            open_in_browser "$root_path/board.html"
         fi
     else
-        ./board.sh "$root_path"
+        if [[ -n "$2" ]]; then
+            # Check if the specified project exists
+            if [ -d "$root_path/$2" ]; then
+                ./board.sh "$root_path" "$2"
+            else
+                echo "Project '$2' does not exist."
+                exit 1
+            fi
+        else
+            ./board.sh "$root_path"
+        fi
+        echo "To view the board in browser, use: gitplan board show"
     fi
     exit 0
 fi
-# Main command processing
 
 if [[ "$1" == "work" ]]; then
     init_worklog
