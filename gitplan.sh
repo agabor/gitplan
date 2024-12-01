@@ -365,7 +365,7 @@ get_task_tags() {
 
 list_tasks() {
     local project_id=$1
-    local tag_filter=$2  # New parameter for tag filtering
+    local tag_filter=$2
     
     list_tasks_with_filter() {
         local task_file=$1
@@ -472,6 +472,14 @@ open_in_browser() {
 
 # Main command processing
 
+while getopts "t:" flag; do
+    case "${flag}" in
+        t) tag_filter=${OPTARG};;
+    esac
+done
+
+shift $((OPTIND-1))
+
 if [[ "$1" == "board" ]]; then
     if [[ "$2" == "show" ]]; then
         if [[ -n "$3" ]]; then
@@ -521,26 +529,21 @@ if [[ "$1" == "work" ]]; then
     fi
 fi
 
-if [[ "$1" == "tag" ]]; then
-    if [[ "$2" == "list" ]]; then
-        list_tasks "" "$3"
-        exit 0
-    else
-        echo "Tags:"
-        find "$root_path" -name "*.md" 2>/dev/null | while read -r task_file; do
-            tags=$(get_task_tags "$task_file")
-            if [ -n "$tags" ]; then
-                echo "$tags"
-            fi
-        done
-        exit 0
-    fi
+if [[ "$1" == "tags" ]]; then
+    echo "Tags:"
+    find "$root_path" -name "*.md" 2>/dev/null | while read -r task_file; do
+        tags=$(get_task_tags "$task_file")
+        if [ -n "$tags" ]; then
+            echo "$tags"
+        fi
+    done
+    exit 0
 fi
 
 
 if [[ "$1" == "task" ]]; then
     if [[ "$2" == "list" ]]; then
-        list_tasks "$3" "$4"
+        list_tasks "$3" "$tag_filter"
         exit 0
     elif [[ "$2" == "show" && -n "$3" && -n "$4" ]]; then
         task_file=$(find_task_in_project "$3" "$4")
