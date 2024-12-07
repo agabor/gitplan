@@ -186,19 +186,22 @@ fi
 if [ ! -f "$ini_file" ]; then
     echo "Configuration file not found. Let's create one."
     
-    read -p "Enter root path for Git Plan data: " root_path
     read -p "Enter your preferred editor command (default: vim): " editor
     editor=${editor:-vim}
     
     mkdir -p "$(dirname "$ini_file")"
     cat > "$ini_file" << EOF
-root_path=$root_path
 editor=$editor
 EOF
     
     echo "Configuration file created at $ini_file"
 fi
+
+dir=$(dirname "$0")
 root_path=$(read_config "$ini_file" "root_path")
+if [ -z "$root_path" ]; then
+    root_path="$dir/../tasks"
+fi
 editor=$(read_config "$ini_file" "editor" || echo "${EDITOR:-vim}")  # Default to $EDITOR or vim
 
 commit() {
@@ -480,8 +483,6 @@ done
 
 shift $((OPTIND-1))
 
-dir=$(dirname "$0")
-
 if [[ "$1" == "board" ]]; then
     if [[ "$2" == "show" ]]; then
         if [[ -n "$3" ]]; then
@@ -589,7 +590,7 @@ if [[ "$1" == "task" ]]; then
     fi
 elif [[ "$1" == "project" ]]; then
     if [[ "$2" == "new" && -n "$3" ]]; then
-        create_new_project "$3" "$4"
+        create_new_project "$3" "$4" "$5"
         exit 0
     elif [[ "$2" == "list" ]]; then
         list_projects
