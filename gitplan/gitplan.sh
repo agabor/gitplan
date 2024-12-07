@@ -480,32 +480,34 @@ done
 
 shift $((OPTIND-1))
 
+dir=$(dirname "$0")
+
 if [[ "$1" == "board" ]]; then
     if [[ "$2" == "show" ]]; then
         if [[ -n "$3" ]]; then
             # Check if the specified project exists
             if [ -d "$root_path/$3" ]; then
-                ./board.sh "$root_path" "$3"
+                $dir/board.sh "$root_path" "$3"
                 open_in_browser "$root_path/board.html"
             else
                 echo "Project '$3' does not exist."
                 exit 1
             fi
         else
-            ./board.sh "$root_path"
+            $dir/board.sh "$root_path"
             open_in_browser "$root_path/board.html"
         fi
     else
         if [[ -n "$2" ]]; then
             # Check if the specified project exists
             if [ -d "$root_path/$2" ]; then
-                ./board.sh "$root_path" "$2"
+                $dir/board.sh "$root_path" "$2"
             else
                 echo "Project '$2' does not exist."
                 exit 1
             fi
         else
-            ./board.sh "$root_path"
+            $dir/board.sh "$root_path"
         fi
         echo "To view the board in browser, use: gitplan board show"
     fi
@@ -608,4 +610,4 @@ elif [[ "$1" == "project" ]]; then
     fi
 fi
 
-./help.sh
+$dir/help.sh

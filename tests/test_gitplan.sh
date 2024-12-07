@@ -10,6 +10,9 @@ TESTS_RUN=0
 TESTS_PASSED=0
 TESTS_FAILED=0
 
+dir=$(dirname "$0")
+gitplan="$dir/../gitplan/gitplan.sh"
+
 # Create dummy editor script
 create_dummy_editor() {
     cat > "$TEST_ROOT/dummy-editor" << 'EOF'
@@ -94,23 +97,23 @@ test_project_management() {
     
     # Test project creation
     assert "Create new project" \
-        "./gitplan.sh project new test-project 'Test Project'" \
+        "$gitplan project new test-project 'Test Project'" \
         "Project 'test-project' created at '$TEST_ROOT/test-project'"
     
     # Test project listing
     assert "List projects" \
-        "./gitplan.sh project list" \
+        "$gitplan project list" \
         "Projects:
 - [test-project] Test Project"
     
     # Test project deletion
     assert "Delete project" \
-        "./gitplan.sh project del test-project" \
+        "$gitplan project del test-project" \
         "Project 'test-project' deleted."
     
     # Test deleting non-existent project
     assert "Delete non-existent project" \
-        "./gitplan.sh project del nonexistent" \
+        "$gitplan project del nonexistent" \
         "Project 'nonexistent' does not exist." \
         1
 }
@@ -120,12 +123,12 @@ test_task_management() {
     echo "Testing task management..."
     
     # Create test project
-    ./gitplan.sh project new test-project >/dev/null
+    $gitplan project new test-project >/dev/null
     
     # Test task creation with specific content
     export TEST_CONTENT="Custom task content for testing"
     assert "Create new task" \
-        "./gitplan.sh task new test-project test-task" \
+        "$gitplan task new test-project test-task" \
         ""
     unset TEST_CONTENT
     
@@ -143,13 +146,13 @@ Custom task content for testing"
     
     # Test task listing
     assert "List tasks in project" \
-        "./gitplan.sh task list test-project" \
+        "$gitplan task list test-project" \
         "Tasks for project 'test-project':
 - [test-project/test-task] test-task [todo]"
     
     # Test task state update
     assert "Update task state" \
-        "./gitplan.sh task state test-project test-task in-progress" \
+        "$gitplan task state test-project test-task in-progress" \
         "Updated task state to 'in-progress'"
     
     # Verify state update
@@ -159,7 +162,7 @@ Custom task content for testing"
     
     # Test task deletion
     assert "Delete task" \
-        "./gitplan.sh task del test-project test-task" \
+        "$gitplan task del test-project test-task" \
         "Task 'test-task' deleted from project 'test-project'"
 }
 
@@ -171,11 +174,11 @@ test_editor_config() {
     export TEST_CONTENT="Content from custom editor"
     
     # Create test project
-    ./gitplan.sh project new editor-test >/dev/null
+    $gitplan project new editor-test >/dev/null
     
     # Create task with custom editor
     assert "Create task with custom editor" \
-        "./gitplan.sh task new editor-test editor-task" \
+        "$gitplan task new editor-test editor-task" \
         ""
     
     # Verify custom editor was used
@@ -191,13 +194,13 @@ test_work_logging() {
     echo "Testing work logging..."
     
     # Create test project and task
-    ./gitplan.sh project new test-project >/dev/null
+    $gitplan project new test-project >/dev/null
     echo "Test task content" > "$TEST_ROOT/test-project/test-task.md"
-    ./gitplan.sh task new test-project test-task >/dev/null
+    $gitplan task new test-project test-task >/dev/null
     
     # Test work start
     assert "Start work on task" \
-        "./gitplan.sh work start test-project test-task" \
+        "$gitplan work start test-project test-task" \
         $'Started working on task \'test-task\' in project \'test-project\'\nUpdated task state to \'in-progress\''
     
     # Verify task state changed to in-progress
@@ -209,7 +212,7 @@ test_work_logging() {
     sleep 2
     
     # Test work end
-    work_end_output=$(./gitplan.sh work end)
+    work_end_output=$($gitplan work end)
     assert "End work on task" \
         "echo \"$work_end_output\" | head -n 1" \
         "Ended work session on task 'test-task' in project 'test-project'"
@@ -217,7 +220,7 @@ test_work_logging() {
     
     # Test work summary
     assert "Generate work summary" \
-        "./gitplan.sh work summary test-project | grep -o 'Total time:.*minutes'" \
+        "$gitplan work summary test-project | grep -o 'Total time:.*minutes'" \
         "Total time: 0 minutes"
 }
 
@@ -226,7 +229,7 @@ test_board_generation() {
     echo "Testing board generation..."
     
     # Create test project and tasks
-    ./gitplan.sh project new test-project >/dev/null
+    $gitplan project new test-project >/dev/null
     
     # Create tasks in different states
     for state in todo in-progress review done; do
@@ -242,7 +245,7 @@ EOF
     
     # Generate board
     assert "Generate board" \
-        "./gitplan.sh board test-project" \
+        "$gitplan board test-project" \
         "Board generated at: $TEST_ROOT/board.html
 To view the board in browser, use: gitplan board show"
     

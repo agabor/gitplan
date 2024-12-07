@@ -12,5 +12,6 @@ jobs:
 
     - name: Run test_gitplan.sh
       run: |
-        chmod +x ./*.sh
-        ./test_gitplan.sh
+        chmod +x gitplan/*.sh
+        chmod +x tests/*.sh
+        tests/test_gitplan.sh
